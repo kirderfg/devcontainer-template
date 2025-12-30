@@ -8,6 +8,7 @@ A best-practices devcontainer configuration with security scanning, pre-commit h
 |-------|------|------|
 | API | FastAPI | 8000 |
 | Frontend | Node/Vite | 3000 |
+| AI Assistant | Claude Code UI | 3001 |
 | Container | Docker-in-Docker | - |
 
 ## What's Included
@@ -27,6 +28,10 @@ A best-practices devcontainer configuration with security scanning, pre-commit h
 - Black, Ruff, MyPy (Python)
 - ESLint, Prettier (JavaScript)
 - GitLens, Git Graph (VS Code)
+
+### AI Coding Assistant
+- **Claude Code CLI** - AI assistant in terminal (`claude` command)
+- **Claude Code UI** - Web interface on port 3001 (access via Tailscale from iPhone/browser)
 
 ### Security Tools
 - **Gitleaks** - Secret detection in commits
@@ -184,6 +189,38 @@ Edit `devcontainer.json`:
 }
 ```
 
+## Claude Code
+
+### CLI Usage
+```bash
+# Start interactive session
+claude
+
+# Ask a question
+claude "explain this code" < file.py
+
+# Code review
+claude "review this diff" < <(git diff)
+```
+
+### Web UI (Port 3001)
+Claude Code UI starts automatically via PM2 and is accessible via Tailscale:
+```bash
+# Access from iPhone/browser
+http://[tailscale-ip]:3001
+
+# Check status
+pm2 status claude-code-ui
+
+# View logs
+pm2 logs claude-code-ui
+
+# Restart if needed
+pm2 restart claude-code-ui
+```
+
+Add to iPhone Home Screen for PWA mode (near-native app experience).
+
 ## Troubleshooting
 
 ### Docker not working
@@ -202,3 +239,18 @@ SKIP=mypy git commit -m "message"
 Authenticate in VS Code:
 1. Click Snyk icon in sidebar
 2. Click "Connect VS Code with Snyk"
+
+### Claude Code UI not accessible
+```bash
+# Check if running
+pm2 status claude-code-ui
+
+# Restart
+pm2 restart claude-code-ui
+
+# Check logs
+pm2 logs claude-code-ui
+
+# Manual start
+pm2 start claude-code-ui --name "claude-code-ui"
+```

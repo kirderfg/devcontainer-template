@@ -160,6 +160,10 @@ if ! command -v snyk &> /dev/null; then
     warn "Run 'snyk auth' to authenticate with Snyk"
 fi
 
+# Install Claude Code CLI and UI
+log "Installing Claude Code CLI and UI..."
+npm install -g @anthropic-ai/claude-code @siteboon/claude-code-ui pm2
+
 # Install Tailscale for remote SSH access
 if ! command -v tailscale &> /dev/null; then
     log "Installing Tailscale..."
