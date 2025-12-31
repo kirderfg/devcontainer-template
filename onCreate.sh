@@ -183,19 +183,28 @@ if [ -n "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
         CONTAINER_NAME="${DEVCONTAINER_NAME:-$(basename $(pwd))}"
         TS_HOSTNAME="devpod-${CONTAINER_NAME}"
 
-        # Remove existing Tailscale device with same hostname (if API key available)
+        # Remove ALL existing Tailscale devices matching this hostname pattern (if API key available)
+        # This handles both exact matches and Tailscale's auto-numbered duplicates (e.g., devpod-shredder-1)
         if [ -n "$TAILSCALE_API_KEY" ]; then
-            log "Checking for existing Tailscale device: $TS_HOSTNAME..."
-            EXISTING_DEVICE=$(curl -s -H "Authorization: Bearer $TAILSCALE_API_KEY" \
+            log "Checking for existing Tailscale devices matching: $TS_HOSTNAME..."
+            # Use jq for reliable JSON parsing - find all devices starting with our hostname
+            EXISTING_DEVICES=$(curl -s -H "Authorization: Bearer $TAILSCALE_API_KEY" \
                 "https://api.tailscale.com/api/v2/tailnet/-/devices" 2>/dev/null | \
-                grep -o "\"id\":\"[^\"]*\",\"name\":\"$TS_HOSTNAME\"" | \
-                head -1 | sed 's/.*"id":"\([^"]*\)".*/\1/')
-            if [ -n "$EXISTING_DEVICE" ]; then
-                log "Removing existing device: $TS_HOSTNAME ($EXISTING_DEVICE)..."
-                curl -s -X DELETE -H "Authorization: Bearer $TAILSCALE_API_KEY" \
-                    "https://api.tailscale.com/api/v2/device/$EXISTING_DEVICE" 2>/dev/null && \
-                    log "Removed old device" || warn "Failed to remove old device"
-                sleep 1
+                jq -r --arg hostname "$TS_HOSTNAME" \
+                '.devices[] | select(.name | startswith($hostname)) | "\(.id)|\(.name)"' 2>/dev/null)
+
+            if [ -n "$EXISTING_DEVICES" ]; then
+                echo "$EXISTING_DEVICES" | while IFS='|' read -r device_id device_name; do
+                    if [ -n "$device_id" ]; then
+                        log "Removing existing device: $device_name ($device_id)..."
+                        curl -s -X DELETE -H "Authorization: Bearer $TAILSCALE_API_KEY" \
+                            "https://api.tailscale.com/api/v2/device/$device_id" 2>/dev/null && \
+                            log "Removed: $device_name" || warn "Failed to remove: $device_name"
+                    fi
+                done
+                sleep 2
+            else
+                log "No existing devices found"
             fi
         fi
 
