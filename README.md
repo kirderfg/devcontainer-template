@@ -1,22 +1,40 @@
-# DevContainer Template for Python + Node Projects
+# DevContainer Template
 
-A best-practices devcontainer configuration with security scanning, pre-commit hooks, and modern tooling.
+A reusable devcontainer configuration for Python + Node projects with security scanning, pre-commit hooks, and modern tooling. Designed to be used as a **git submodule**.
 
-## Stack
+## Quick Start
 
-| Layer | Tool | Port |
-|-------|------|------|
-| API | FastAPI | 8000 |
-| Frontend | Node/Vite | 3000 |
-| AI Assistant | Claude Code UI | 3001 |
-| Container | Docker-in-Docker | - |
+### Add to Your Project
+
+```bash
+cd your-project
+git submodule add https://github.com/kirderfg/devcontainer-template.git .devcontainer
+cp .devcontainer/.pre-commit-config.yaml .
+git add .devcontainer .pre-commit-config.yaml .gitmodules
+git commit -m "Add devcontainer template"
+```
+
+### Update the Template
+
+```bash
+git submodule update --remote .devcontainer
+git add .devcontainer
+git commit -m "Update devcontainer template"
+```
+
+### Open in DevPod
+
+```bash
+# From VM (SSH to dev-vm first)
+~/dev_env/scripts/dp.sh up https://github.com/your/repo
+```
 
 ## What's Included
 
-### Languages & Runtimes
-- Python 3.12 (Debian Bookworm)
-- Node.js 20
-- Docker-in-Docker with Compose v2
+### Base Stack
+- **Python 3.12** (Debian Bookworm)
+- **Node.js 20**
+- **Docker-in-Docker** with Compose v2
 
 ### Developer Tools (via shell-bootstrap)
 - Zsh with vi-mode, Starship prompt
@@ -24,43 +42,20 @@ A best-practices devcontainer configuration with security scanning, pre-commit h
 - Yazi (file manager), Glow (markdown)
 - Pet (snippets), Zoxide (smart cd)
 - GitHub CLI (`gh`), Delta (git diff)
-- Pre-commit hooks framework
-- Black, Ruff, MyPy (Python)
-- ESLint, Prettier (JavaScript)
-- GitLens, Git Graph (VS Code)
 
 ### AI Coding Assistant
 - **Claude Code CLI** - AI assistant in terminal (`claude` command)
-- **Claude Code UI** - Web interface on port 3001 (access via Tailscale from iPhone/browser)
+- **Claude Code UI** - Web interface on port 3001 (access via Tailscale)
 
 ### Security Tools
 - **Gitleaks** - Secret detection in commits
 - **Trivy** - Container/dependency vulnerability scanning
 - **Bandit** - Python security linter
 - **Safety** - Python dependency vulnerability checker
-- **Hadolint** - Dockerfile linter
-- **Snyk CLI** - Dependency & container scanning (run `snyk auth` to setup)
-- **Snyk VS Code** - Real-time scanning in editor
+- **Snyk CLI** - Dependency & container scanning
 
-## Quick Start
-
-1. Copy template to your project:
-   ```bash
-   cp -r templates/devcontainer/.devcontainer your-project/
-   cp templates/devcontainer/.pre-commit-config.yaml your-project/
-   ```
-
-2. Open in VS Code or DevPod:
-   ```bash
-   # VS Code
-   code your-project/
-   # Then: Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
-
-   # DevPod
-   devpod up ./your-project --provider ssh --option HOST=dev-vm
-   ```
-
-3. First-time setup happens automatically via `onCreate.sh`
+### Networking
+- **Tailscale** - SSH access to container (hostname: `devpod-<workspace>`)
 
 ## Files
 
@@ -69,61 +64,39 @@ A best-practices devcontainer configuration with security scanning, pre-commit h
 | `devcontainer.json` | Container configuration |
 | `onCreate.sh` | One-time setup (installs tools, dependencies) |
 | `postStart.sh` | Runs on every container start |
-| `.pre-commit-config.yaml` | Git hooks configuration |
+| `.pre-commit-config.yaml` | Git hooks configuration (copy to project root) |
 | `security-scan.sh` | Manual security scanning |
 
-## Security Scanning
+## 1Password Integration
 
-### Automatic (via pre-commit)
-Every commit is automatically checked for:
-- Secrets and API keys (gitleaks)
-- Python security issues (bandit)
-- Large files
-- Merge conflicts
+Secrets are loaded from 1Password `DEV_CLI` vault. Pass the token when creating workspaces:
 
-### Manual Scanning
 ```bash
-# Quick scan (secrets + dependencies)
-./security-scan.sh
-
-# Full scan (includes container analysis)
-./security-scan.sh full
+devpod up github.com/your/repo \
+  --workspace-env OP_SERVICE_ACCOUNT_TOKEN=$(cat ~/.config/dev_env/op_token) \
+  --workspace-env SHELL_BOOTSTRAP_NONINTERACTIVE=1
 ```
 
-### Snyk CLI
+### Required 1Password Items
+
+| Item | Field | Purpose |
+|------|-------|---------|
+| `GitHub` | `PAT` | GitHub CLI + git credentials |
+| `Tailscale` | `auth_key` | Device registration |
+| `Tailscale` | `api_key` | Auto-remove old devices on redeploy |
+| `Atuin` | `username`, `password`, `key` | Shell history sync |
+
+## Tailscale Access
+
+Each container gets a Tailscale IP. Connect directly from anywhere:
+
 ```bash
-# Authenticate (one-time)
-snyk auth
+# SSH into container (as root)
+ssh root@devpod-myproject
 
-# Test dependencies
-snyk test
-
-# Test container image
-snyk container test your-image:tag
-
-# Monitor (adds to Snyk dashboard)
-snyk monitor
-```
-
-### CI/CD Integration
-Add to your GitHub Actions workflow:
-```yaml
-- name: Security Scan
-  run: |
-    pip install safety bandit
-    safety check
-    bandit -r src/
-
-- name: Snyk Scan
-  uses: snyk/actions/python@master
-  env:
-    SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-- name: Container Scan
-  uses: aquasecurity/trivy-action@master
-  with:
-    scan-type: 'fs'
-    scan-ref: '.'
+# Switch to vscode user for full shell environment
+su - vscode
+dev  # Launch tmux dev session
 ```
 
 ## Pre-commit Hooks
@@ -139,11 +112,12 @@ Hooks run automatically on `git commit`:
 | `mypy` | Type checks Python |
 | `bandit` | Security checks Python |
 | `eslint` | Lints JavaScript |
-| `prettier` | Formats JS/JSON/YAML |
+| `prettier` | Formats JS/JSON/YAML/MD |
 | `hadolint` | Lints Dockerfiles |
 | `commitizen` | Enforces commit message format |
 
 ### Commands
+
 ```bash
 # Run all hooks on all files
 pre-commit run --all-files
@@ -151,47 +125,29 @@ pre-commit run --all-files
 # Update hooks to latest versions
 pre-commit autoupdate
 
-# Skip hooks for emergency commit (not recommended)
+# Skip hooks (not recommended)
 git commit --no-verify -m "message"
 ```
 
-## Customization
+## Security Scanning
 
-### Add Python Dependencies
-Edit `pyproject.toml`:
-```toml
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "black",
-    "ruff",
-    # add more...
-]
-```
+### Automatic (via pre-commit)
+Every commit is checked for secrets and security issues.
 
-### Add Ports
-Edit `devcontainer.json`:
-```json
-"forwardPorts": [3000, 5000, 8000, 5432],
-"portsAttributes": {
-  "5432": { "label": "PostgreSQL" }
-}
-```
+### Manual Scanning
 
-### Add VS Code Extensions
-```json
-"customizations": {
-  "vscode": {
-    "extensions": [
-      "your.extension-id"
-    ]
-  }
-}
+```bash
+# Quick scan (secrets + dependencies)
+.devcontainer/security-scan.sh
+
+# Full scan (includes container analysis)
+.devcontainer/security-scan.sh full
 ```
 
 ## Claude Code
 
 ### CLI Usage
+
 ```bash
 # Start interactive session
 claude
@@ -204,11 +160,10 @@ claude "review this diff" < <(git diff)
 ```
 
 ### Web UI (Port 3001)
-Claude Code UI starts automatically via PM2 and is accessible via Tailscale:
-```bash
-# Access from iPhone/browser
-http://[tailscale-ip]:3001
 
+Claude Code UI starts automatically via PM2:
+
+```bash
 # Check status
 pm2 status claude-code-ui
 
@@ -219,38 +174,50 @@ pm2 logs claude-code-ui
 pm2 restart claude-code-ui
 ```
 
-Add to iPhone Home Screen for PWA mode (near-native app experience).
+Access via Tailscale IP: `http://[tailscale-ip]:3001`
+
+## Customization
+
+### Add Python Dependencies
+
+Edit `pyproject.toml` in your project:
+```toml
+[project.optional-dependencies]
+dev = ["pytest", "black", "ruff"]
+```
+
+### Add VS Code Extensions
+
+Edit `devcontainer.json`:
+```json
+"customizations": {
+  "vscode": {
+    "extensions": ["your.extension-id"]
+  }
+}
+```
 
 ## Troubleshooting
 
 ### Docker not working
-Wait for Docker daemon to start, or run:
+Wait for Docker daemon to start, or check:
 ```bash
-sudo dockerd &
+docker info
 ```
 
-### Pre-commit hooks slow
-Skip specific hooks:
+### `dev` alias not found
+You're logged in as root. Switch to vscode user:
 ```bash
-SKIP=mypy git commit -m "message"
+su - vscode
+dev
 ```
 
-### Snyk not working
-Authenticate in VS Code:
-1. Click Snyk icon in sidebar
-2. Click "Connect VS Code with Snyk"
+### Tailscale device already exists
+Ensure `api_key` is set in 1Password for auto-cleanup.
 
 ### Claude Code UI not accessible
 ```bash
-# Check if running
 pm2 status claude-code-ui
-
-# Restart
-pm2 restart claude-code-ui
-
-# Check logs
 pm2 logs claude-code-ui
-
-# Manual start
-pm2 start claude-code-ui --name "claude-code-ui"
+pm2 restart claude-code-ui
 ```
