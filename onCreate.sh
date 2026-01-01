@@ -13,13 +13,7 @@ NC='\033[0m'
 log() { echo -e "${GREEN}[Setup]${NC} $1"; }
 warn() { echo -e "${YELLOW}[Setup]${NC} $1"; }
 
-# Install 1Password CLI for secure secret management
-if ! command -v op &> /dev/null; then
-    log "Installing 1Password CLI..."
-    curl -fsSL https://downloads.1password.com/linux/keys/1password.asc | sudo gpg --dearmor -o /usr/share/keyrings/1password-archive-keyring.gpg
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/amd64 stable main" | sudo tee /etc/apt/sources.list.d/1password.list
-    sudo apt-get update && sudo apt-get install -y 1password-cli
-fi
+# 1Password CLI is installed by shell-bootstrap
 
 # Save 1Password token FIRST (before any op commands that might fail)
 # This ensures the token persists for shell sessions even if setup fails
@@ -160,9 +154,11 @@ if ! command -v snyk &> /dev/null; then
     warn "Run 'snyk auth' to authenticate with Snyk"
 fi
 
-# Install Claude Code CLI and UI
-log "Installing Claude Code CLI and UI..."
-npm install -g @anthropic-ai/claude-code @siteboon/claude-code-ui pm2
+# Install Claude Code UI for web/mobile access (Claude Code CLI is installed by shell-bootstrap)
+if ! command -v claude-code-ui &> /dev/null; then
+    log "Installing Claude Code UI and PM2..."
+    npm install -g @siteboon/claude-code-ui pm2
+fi
 
 # Install Tailscale for remote SSH access
 if ! command -v tailscale &> /dev/null; then
