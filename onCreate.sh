@@ -66,6 +66,9 @@ curl -fsSL https://raw.githubusercontent.com/kirderfg/shell-bootstrap/main/insta
 SHELL_BOOTSTRAP_NONINTERACTIVE=1 bash /tmp/shell-bootstrap-install.sh || warn "shell-bootstrap failed (non-fatal)"
 rm -f /tmp/shell-bootstrap-install.sh
 
+# Ensure secrets are loaded in zsh sessions
+grep -q "dev_env/init.sh" ~/.zshrc 2>/dev/null || echo "[ -f ~/.config/dev_env/init.sh ] && source ~/.config/dev_env/init.sh" >> ~/.zshrc
+
 # Ensure PATH includes local bins (for atuin, pet, etc.)
 export PATH="$HOME/.local/bin:$HOME/.atuin/bin:$PATH"
 
