@@ -2,6 +2,20 @@
 
 A reusable devcontainer configuration for Python + Node projects with security scanning, pre-commit hooks, and modern tooling. Designed to be used as a **git submodule**.
 
+## Security Model
+
+**1Password stays on the VM only.** Secrets are:
+1. Read from 1Password on the VM by `dp.sh`
+2. Injected as environment variables when creating the devpod
+3. Never exposed via `op` CLI in containers (it's not installed)
+
+**Tailscale is receive-only.** DevPods:
+- Can receive SSH connections from your tailnet
+- Cannot initiate outbound connections to other tailnet devices
+- Can access the public internet normally
+
+This isolation ensures safe, unattended Claude Code execution.
+
 ## Quick Start
 
 ### Add to Your Project
@@ -29,6 +43,12 @@ git commit -m "Update devcontainer template"
 ~/dev_env/scripts/dp.sh up https://github.com/your/repo
 ```
 
+The `dp.sh` script automatically:
+- Reads secrets from 1Password on the VM
+- Injects them as environment variables
+- Copies Claude credentials for seamless auth
+- Creates the devpod with security isolation
+
 ## What's Included
 
 ### Base Stack
@@ -46,6 +66,7 @@ git commit -m "Update devcontainer template"
 ### AI Coding Assistant
 - **Claude Code CLI** - AI assistant in terminal (`claude` command)
 - **Claude Code UI** - Web interface on port 3001 (access via Tailscale)
+- **Task Master** - AI task management via MCP
 
 ### Security Tools
 - **Gitleaks** - Secret detection in commits
@@ -56,39 +77,39 @@ git commit -m "Update devcontainer template"
 
 ### Networking
 - **Tailscale** - SSH access to container (hostname: `devpod-<workspace>`)
+- **Receive-only mode** - Cannot initiate tailnet connections (security)
 
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `devcontainer.json` | Container configuration |
-| `onCreate.sh` | One-time setup (installs tools, dependencies) |
+| `onCreate.sh` | One-time setup (installs tools, configures secrets) |
 | `postStart.sh` | Runs on every container start |
 | `.pre-commit-config.yaml` | Git hooks configuration (copy to project root) |
 | `security-scan.sh` | Manual security scanning |
+| `CLAUDE.md` | Claude Code instructions |
 
-## 1Password Integration
+## Secret Injection
 
-Secrets are loaded from 1Password `DEV_CLI` vault. Pass the token when creating workspaces:
+Secrets are injected as environment variables by `dp.sh`:
 
-```bash
-devpod up github.com/your/repo \
-  --workspace-env OP_SERVICE_ACCOUNT_TOKEN=$(cat ~/.config/dev_env/op_token) \
-  --workspace-env SHELL_BOOTSTRAP_NONINTERACTIVE=1
-```
+| Variable | Source | Purpose |
+|----------|--------|---------|
+| `GITHUB_TOKEN` | `op://DEV_CLI/GitHub/PAT` | Git auth, gh CLI |
+| `GH_TOKEN` | Same as above | Alias for GITHUB_TOKEN |
+| `ATUIN_USERNAME` | `op://DEV_CLI/Atuin/username` | Shell history sync |
+| `ATUIN_PASSWORD` | `op://DEV_CLI/Atuin/password` | Shell history sync |
+| `ATUIN_KEY` | `op://DEV_CLI/Atuin/key` | Shell history encryption |
+| `PET_GITHUB_TOKEN` | `op://DEV_CLI/Pet/PAT` | Pet snippet sync |
+| `TAILSCALE_AUTH_KEY` | `op://DEV_CLI/Tailscale/devpod_auth_key` | Device registration (ephemeral) |
+| `TAILSCALE_API_KEY` | `op://DEV_CLI/Tailscale/api_key` | Remove old devices |
 
-### Required 1Password Items
-
-| Item | Field | Purpose |
-|------|-------|---------|
-| `GitHub` | `PAT` | GitHub CLI + git credentials |
-| `Tailscale` | `auth_key` | Device registration |
-| `Tailscale` | `api_key` | Auto-remove old devices on redeploy |
-| `Atuin` | `username`, `password`, `key` | Shell history sync |
+**Note:** Tailscale keys are used once during setup and then removed from the environment.
 
 ## Tailscale Access
 
-Each container gets a Tailscale IP. Connect directly from anywhere:
+Each container gets a Tailscale IP. Connect from anywhere on your tailnet:
 
 ```bash
 # SSH into container (as root)
@@ -98,6 +119,15 @@ ssh root@devpod-myproject
 su - vscode
 dev  # Launch tmux dev session
 ```
+
+### Receive-Only Security
+
+DevPods use a tagged Tailscale auth key (`tag:devpod`) with ACL rules that:
+- Allow incoming SSH from trusted devices
+- Block outbound connections to other tailnet devices
+- Allow normal internet access
+
+This means even if Claude runs uncontrolled, it cannot reach your VM or other machines.
 
 ## Pre-commit Hooks
 
@@ -176,28 +206,17 @@ pm2 restart claude-code-ui
 
 Access via Tailscale IP: `http://[tailscale-ip]:3001`
 
-## Customization
-
-### Add Python Dependencies
-
-Edit `pyproject.toml` in your project:
-```toml
-[project.optional-dependencies]
-dev = ["pytest", "black", "ruff"]
-```
-
-### Add VS Code Extensions
-
-Edit `devcontainer.json`:
-```json
-"customizations": {
-  "vscode": {
-    "extensions": ["your.extension-id"]
-  }
-}
-```
-
 ## Troubleshooting
+
+### `op` command not found
+**This is expected.** 1Password CLI is intentionally NOT installed for security. Secrets are pre-injected as environment variables.
+
+### gh not authenticated
+Check if token was injected:
+```bash
+echo $GITHUB_TOKEN
+gh auth status
+```
 
 ### Docker not working
 Wait for Docker daemon to start, or check:
@@ -212,8 +231,12 @@ su - vscode
 dev
 ```
 
-### Tailscale device already exists
-Ensure `api_key` is set in 1Password for auto-cleanup.
+### Tailscale not connected
+Check if auth key was injected during creation. If not, you'll need to rebuild the devpod:
+```bash
+# From VM
+~/dev_env/scripts/dp.sh rebuild myworkspace
+```
 
 ### Claude Code UI not accessible
 ```bash
