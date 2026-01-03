@@ -160,6 +160,29 @@ if ! command -v claude-code-ui &> /dev/null; then
     npm install -g @siteboon/claude-code-ui pm2
 fi
 
+# Install Task Master for AI task management
+if ! command -v task-master &> /dev/null; then
+    log "Installing Task Master..."
+    npm install -g task-master-ai
+fi
+
+# Configure Task Master MCP for Claude Code
+log "Configuring Task Master MCP..."
+mkdir -p ~/.claude
+if [ ! -f ~/.claude/.mcp.json ]; then
+    cat > ~/.claude/.mcp.json << 'MCPJSON'
+{
+  "mcpServers": {
+    "taskmaster-ai": {
+      "command": "npx",
+      "args": ["-y", "--package=task-master-ai", "task-master-ai"]
+    }
+  }
+}
+MCPJSON
+    log "Task Master MCP config created"
+fi
+
 # Install Tailscale for remote SSH access
 if ! command -v tailscale &> /dev/null; then
     log "Installing Tailscale..."
